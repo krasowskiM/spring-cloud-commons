@@ -19,7 +19,6 @@ package org.springframework.cloud.commons.httpclient;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.concurrent.TimeUnit;
 
@@ -43,6 +42,7 @@ import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
  *
  * @author Ryan Baxter
  * @author Michael Wirth
+ * @author krasowskiM
  */
 public class DefaultApacheHttpClientConnectionManagerFactory implements ApacheHttpClientConnectionManagerFactory {
 
@@ -57,45 +57,50 @@ public class DefaultApacheHttpClientConnectionManagerFactory implements ApacheHt
 	@Override
 	public HttpClientConnectionManager newConnectionManager(boolean disableSslValidation, int maxTotalConnections,
 			int maxConnectionsPerRoute, long timeToLive, TimeUnit timeUnit, RegistryBuilder registryBuilder) {
-		if (registryBuilder == null) {
-			registryBuilder = RegistryBuilder.<ConnectionSocketFactory>create().register(HTTP_SCHEME,
-					PlainConnectionSocketFactory.INSTANCE);
-		}
-		if (disableSslValidation) {
-			try {
-				final SSLContext sslContext = SSLContext.getInstance("SSL");
-				sslContext.init(null, new TrustManager[] { new DisabledValidationTrustManager() }, new SecureRandom());
-				registryBuilder.register(HTTPS_SCHEME,
-						new SSLConnectionSocketFactory(sslContext, NoopHostnameVerifier.INSTANCE));
-			}
-			catch (NoSuchAlgorithmException e) {
-				LOG.warn("Error creating SSLContext", e);
-			}
-			catch (KeyManagementException e) {
-				LOG.warn("Error creating SSLContext", e);
-			}
-		}
-		else {
-			registryBuilder.register("https", SSLConnectionSocketFactory.getSocketFactory());
-		}
-		final Registry<ConnectionSocketFactory> registry = registryBuilder.build();
+		Registry<ConnectionSocketFactory> registry =
+				connectionSocketFactoryRegistry(disableSslValidation, registryBuilder);
 
 		PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager(registry, null,
 				null, null, timeToLive, timeUnit);
 		connectionManager.setMaxTotal(maxTotalConnections);
 		connectionManager.setDefaultMaxPerRoute(maxConnectionsPerRoute);
-
 		return connectionManager;
 	}
 
-	class DisabledValidationTrustManager implements X509TrustManager {
+	private Registry<ConnectionSocketFactory> connectionSocketFactoryRegistry(boolean disableSslValidation,
+			RegistryBuilder providedRegistry) {
+		if (providedRegistry == null) {
+			RegistryBuilder<ConnectionSocketFactory> registryBuilder = RegistryBuilder.<ConnectionSocketFactory>create()
+					.register(HTTP_SCHEME, PlainConnectionSocketFactory.INSTANCE);
+			return registryBuilder
+					.register(HTTPS_SCHEME, sslConnectionSocketFactory(disableSslValidation))
+					.build();
+		}
+		return providedRegistry.build();
+	}
+
+	private SSLConnectionSocketFactory sslConnectionSocketFactory(boolean disableSslValidation) {
+		if (disableSslValidation) {
+			try {
+				final SSLContext sslContext = SSLContext.getInstance("SSL");
+				sslContext.init(null, new TrustManager[] {new DisabledValidationTrustManager()}, new SecureRandom());
+				return new SSLConnectionSocketFactory(sslContext, NoopHostnameVerifier.INSTANCE);
+			}
+			catch (NoSuchAlgorithmException | KeyManagementException e) {
+				LOG.warn("Error creating SSLContext", e);
+			}
+		}
+		return SSLConnectionSocketFactory.getSocketFactory();
+	}
+
+	static class DisabledValidationTrustManager implements X509TrustManager {
 
 		@Override
-		public void checkClientTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
+		public void checkClientTrusted(X509Certificate[] x509Certificates, String s) {
 		}
 
 		@Override
-		public void checkServerTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
+		public void checkServerTrusted(X509Certificate[] x509Certificates, String s) {
 		}
 
 		@Override
