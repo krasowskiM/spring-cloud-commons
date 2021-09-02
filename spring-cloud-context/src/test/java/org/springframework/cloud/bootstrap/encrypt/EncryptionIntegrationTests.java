@@ -16,15 +16,20 @@
 
 package org.springframework.cloud.bootstrap.encrypt;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.cloud.context.refresh.ContextRefresher;
+import org.springframework.cloud.context.test.TestConfigDataLocationResolver;
+import org.springframework.cloud.context.test.TestEnvPostProcessor;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.ConfigurableEnvironment;
+import org.springframework.security.crypto.encrypt.TextEncryptor;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.BDDAssertions.then;
@@ -116,6 +121,25 @@ public class EncryptionIntegrationTests {
 						"foo.password:{cipher}bf29452295df354e6153c5b31b03ef23c70e55fba24299aa85c63438f1c43c95")
 				.run();
 		then(context.getBean(PasswordProperties.class).getPassword()).isEqualTo("test");
+	}
+
+	@Test
+	public void decryptAfterRefresh() {
+		TestConfigDataLocationResolver.config.put("foo.password",
+				"{cipher}bf29452295df354e6153c5b31b03ef23c70e55fba24299aa85c63438f1c43c95");
+		ConfigurableApplicationContext context = new SpringApplicationBuilder(TestAutoConfiguration.class)
+				.web(WebApplicationType.NONE).properties("encrypt.key:pie", TestEnvPostProcessor.EPP_ENABLED + "=true",
+						"spring.cloud.refresh.enabled:true")
+				.run();
+		TextEncryptor encryptor = context.getBean(TextEncryptor.class);
+		ContextRefresher refresher = context.getBean(ContextRefresher.class);
+		ConfigurableEnvironment env = context.getBean(ConfigurableEnvironment.class);
+		then(env.getProperty("foo.password")).isEqualTo("test");
+		TestConfigDataLocationResolver.config.put("foo.password", "{cipher}" + encryptor.encrypt("newValue"));
+		refresher.refresh();
+		then(env.getProperty("foo.password")).isEqualTo("newValue");
+		context.close();
+		TestConfigDataLocationResolver.config.clear();
 	}
 
 	@Configuration(proxyBeanMethods = false)
