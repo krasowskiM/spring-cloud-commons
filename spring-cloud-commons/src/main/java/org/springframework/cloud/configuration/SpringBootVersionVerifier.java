@@ -35,7 +35,7 @@ class SpringBootVersionVerifier implements CompatibilityVerifier {
 
 	final Map<String, CompatibilityPredicate> ACCEPTED_VERSIONS = new HashMap<String, CompatibilityPredicate>() {
 		{
-			this.put("2.6", is2_6());
+			this.put("3.0", is3_0());
 		}
 	};
 
@@ -70,20 +70,22 @@ class SpringBootVersionVerifier implements CompatibilityVerifier {
 		return SpringBootVersion.getVersion();
 	}
 
-	CompatibilityPredicate is2_6() {
+	CompatibilityPredicate is3_0() {
 		return new CompatibilityPredicate() {
 
 			@Override
 			public String toString() {
-				return "Predicate for Boot 2.6";
+				return "Predicate for Boot 3.0";
 			}
 
 			@Override
 			public boolean isCompatible() {
 				try {
-					// since 2.6
-					Class.forName("org.springframework.boot.autoconfigure.data.redis.ClientResourcesBuilderCustomizer");
+					// since 3.0
+					Class.forName(
+							"org.springframework.boot.context.properties.ConfigurationPropertiesBindConstructorProvider");
 					return true;
+
 				}
 				catch (ClassNotFoundException e) {
 					return false;

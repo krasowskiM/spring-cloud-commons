@@ -16,6 +16,7 @@
 
 package org.springframework.cloud.client.loadbalancer.reactive;
 
+import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.loadbalancer.LoadBalancerProperties;
 import org.springframework.http.HttpMethod;
 
@@ -49,8 +50,34 @@ public class RetryableExchangeFilterFunctionLoadBalancerRetryPolicy implements L
 	}
 
 	@Override
+	public boolean retryableException(Throwable throwable) {
+		if (properties.getRetry().isRetryOnAllExceptions()) {
+			return true;
+		}
+		return properties.getRetry().getRetryableExceptions().stream()
+				.anyMatch(exception -> exception.isInstance(throwable)
+						|| throwable != null && exception.isInstance(throwable.getCause()));
+	}
+
+	@Override
 	public boolean canRetryOnMethod(HttpMethod method) {
 		return HttpMethod.GET.equals(method) || properties.getRetry().isRetryOnAllOperations();
+	}
+
+	static class Factory implements LoadBalancerRetryPolicy.Factory {
+
+		final ReactiveLoadBalancer.Factory<ServiceInstance> loadBalancerFactory;
+
+		Factory(ReactiveLoadBalancer.Factory<ServiceInstance> loadBalancerFactory) {
+			this.loadBalancerFactory = loadBalancerFactory;
+		}
+
+		@Override
+		public LoadBalancerRetryPolicy apply(String serviceId) {
+			return new RetryableExchangeFilterFunctionLoadBalancerRetryPolicy(
+					loadBalancerFactory.getProperties(serviceId));
+		}
+
 	}
 
 }

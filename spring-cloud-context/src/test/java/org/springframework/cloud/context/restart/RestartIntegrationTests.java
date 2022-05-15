@@ -23,7 +23,6 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.support.LiveBeansView;
 
 import static org.assertj.core.api.BDDAssertions.then;
 
@@ -46,7 +45,7 @@ public class RestartIntegrationTests {
 	public void testRestartTwice() throws Exception {
 
 		this.context = SpringApplication.run(TestConfiguration.class, "--management.endpoint.restart.enabled=true",
-				"--server.port=0", "--spring.config.use-legacy-processing=true",
+				"--server.port=0", "--spring.cloud.bootstrap.enabled=true",
 				"--management.endpoints.web.exposure.include=restart", "--spring.liveBeansView.mbeanDomain=livebeans");
 
 		RestartEndpoint endpoint = this.context.getBean(RestartEndpoint.class);
@@ -66,10 +65,13 @@ public class RestartIntegrationTests {
 		then(this.context.getParent()).isNotNull();
 		then(this.context.getParent().getParent()).isNull();
 
-		LiveBeansView beans = new LiveBeansView();
-		String json = beans.getSnapshotAsJson();
-		then(json).containsOnlyOnce("parent\": \"bootstrap");
-		then(json).containsOnlyOnce("parent\": null");
+		// FIXME: 4.0.0 missing LiveBeansView
+		/*
+		 * LiveBeansView beans = new LiveBeansView(); String json =
+		 * beans.getSnapshotAsJson();
+		 * then(json).containsOnlyOnce("parent\": \"bootstrap");
+		 * then(json).containsOnlyOnce("parent\": null");
+		 */
 	}
 
 	@Configuration(proxyBeanMethods = false)

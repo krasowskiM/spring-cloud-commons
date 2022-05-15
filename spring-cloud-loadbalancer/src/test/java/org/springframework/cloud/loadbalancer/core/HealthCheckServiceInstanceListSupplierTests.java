@@ -29,7 +29,6 @@ import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -42,9 +41,9 @@ import org.springframework.boot.web.server.LocalServerPort;
 import org.springframework.cloud.client.DefaultServiceInstance;
 import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.loadbalancer.LoadBalancerProperties;
+import org.springframework.cloud.loadbalancer.support.LoadBalancerClientFactory;
 import org.springframework.cloud.loadbalancer.support.ServiceInstanceListSuppliers;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -52,7 +51,11 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.cloud.loadbalancer.core.ServiceInstanceListSuppliersTestUtils.healthCheckFunction;
 
@@ -64,7 +67,6 @@ import static org.springframework.cloud.loadbalancer.core.ServiceInstanceListSup
  * @author Roman Chigvintsev
  * @author Sabyasachi Bhattacharya
  */
-@ExtendWith(SpringExtension.class)
 @SpringBootTest(classes = HealthCheckServiceInstanceListSupplierTests.TestApplication.class,
 		webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class HealthCheckServiceInstanceListSupplierTests {
@@ -110,6 +112,38 @@ class HealthCheckServiceInstanceListSupplierTests {
 
 		boolean alive = listSupplier.isAlive(serviceInstance).block();
 
+		assertThat(alive).isTrue();
+	}
+
+	@Test
+	void shouldNotCheckInstanceWithNullHealthCheckPath() {
+		BiFunction<ServiceInstance, String, Mono<Boolean>> mockAliveFunction = mock(BiFunction.class);
+		String serviceId = "no-health-check-service";
+		healthCheck.getPath().put("no-health-check-service", null);
+		ServiceInstance serviceInstance = new DefaultServiceInstance("no-health-check-service-1", serviceId,
+				"127.0.0.1", port, false);
+		listSupplier = new HealthCheckServiceInstanceListSupplier(
+				ServiceInstanceListSuppliers.from(serviceId, serviceInstance), healthCheck, mockAliveFunction);
+
+		boolean alive = listSupplier.isAlive(serviceInstance).block();
+
+		verify(mockAliveFunction, never()).apply(any(), any());
+		assertThat(alive).isTrue();
+	}
+
+	@Test
+	void shouldNotCheckInstanceWithEmptyHealthCheckPath() {
+		BiFunction<ServiceInstance, String, Mono<Boolean>> mockAliveFunction = mock(BiFunction.class);
+		String serviceId = "no-health-check-service";
+		healthCheck.getPath().put("no-health-check-service", "");
+		ServiceInstance serviceInstance = new DefaultServiceInstance("no-health-check-service-1", serviceId,
+				"127.0.0.1", port, false);
+		listSupplier = new HealthCheckServiceInstanceListSupplier(
+				ServiceInstanceListSuppliers.from(serviceId, serviceInstance), healthCheck, mockAliveFunction);
+
+		boolean alive = listSupplier.isAlive(serviceInstance).block();
+
+		verify(mockAliveFunction, never()).apply(any(), any());
 		assertThat(alive).isTrue();
 	}
 
@@ -545,6 +579,27 @@ class HealthCheckServiceInstanceListSupplierTests {
 		boolean alive = listSupplier.isAlive(serviceInstance).block();
 
 		assertThat(alive).isTrue();
+	}
+
+	@Test
+	void shouldCheckUseProvidedPortForHealthCheckRequest() {
+		Throwable exception = catchThrowable(() -> {
+			String serviceId = "ignored-service";
+			healthCheck.setPort(8888);
+			LoadBalancerProperties properties = new LoadBalancerProperties();
+			properties.setHealthCheck(healthCheck);
+			LoadBalancerClientFactory loadBalancerClientFactory = mock(LoadBalancerClientFactory.class);
+			when(loadBalancerClientFactory.getProperties(serviceId)).thenReturn(properties);
+			ServiceInstance serviceInstance = new DefaultServiceInstance("ignored-service-1", serviceId, "127.0.0.1",
+					port, false);
+			listSupplier = new HealthCheckServiceInstanceListSupplier(
+					ServiceInstanceListSuppliers.from(serviceId, serviceInstance), loadBalancerClientFactory,
+					healthCheckFunction(webClient));
+
+			listSupplier.isAlive(serviceInstance).block();
+		});
+
+		assertThat(exception).hasMessageContaining("Connection refused: /127.0.0.1:888");
 	}
 
 	@Configuration(proxyBeanMethods = false)

@@ -175,20 +175,8 @@ public class SpringBootDependencyTests {
 
 	@Test
 	public void should_match_against_current_manifest() {
-		try {
-			verifyCurrentVersionFromManifest("2.6");
-			verifyCurrentVersionFromManifest("2.6.x");
-		}
-		catch (AssertionError e) {
-			if (e.getMessage() != null && e.getMessage().contains("2.7.")) {
-				// we're likely running a boot 2.7 compatibility test, try 2.7
-				verifyCurrentVersionFromManifest("2.7");
-				verifyCurrentVersionFromManifest("2.7.x");
-			}
-			else {
-				throw e;
-			}
-		}
+		verifyCurrentVersionFromManifest("3.0");
+		verifyCurrentVersionFromManifest("3.0.x");
 	}
 
 	private void verifyCurrentVersionFromManifest(String version) {
@@ -204,7 +192,7 @@ public class SpringBootDependencyTests {
 
 	@Test
 	public void should_match_against_current_predicate() {
-		List<String> acceptedVersions = Collections.singletonList("2.6");
+		List<String> acceptedVersions = Collections.singletonList("3.0");
 		SpringBootVersionVerifier versionVerifier = new SpringBootVersionVerifier(acceptedVersions) {
 			@Override
 			String getVersionFromManifest() {
@@ -212,7 +200,7 @@ public class SpringBootDependencyTests {
 			}
 		};
 		versionVerifier.ACCEPTED_VERSIONS.clear();
-		versionVerifier.ACCEPTED_VERSIONS.put("2.6", versionVerifier.is2_6());
+		versionVerifier.ACCEPTED_VERSIONS.put("3.0", versionVerifier.is3_0());
 
 		VerificationResult verificationResult = versionVerifier.verify();
 
@@ -222,7 +210,7 @@ public class SpringBootDependencyTests {
 
 	@Test
 	public void should_match_against_current_predicate_with_version_ending_with_x() {
-		List<String> acceptedVersions = Collections.singletonList("2.6.x");
+		List<String> acceptedVersions = Collections.singletonList("3.0.x");
 		SpringBootVersionVerifier versionVerifier = new SpringBootVersionVerifier(acceptedVersions) {
 			@Override
 			String getVersionFromManifest() {
@@ -230,7 +218,7 @@ public class SpringBootDependencyTests {
 			}
 		};
 		versionVerifier.ACCEPTED_VERSIONS.clear();
-		versionVerifier.ACCEPTED_VERSIONS.put("2.6", versionVerifier.is2_6());
+		versionVerifier.ACCEPTED_VERSIONS.put("3.0", versionVerifier.is3_0());
 
 		VerificationResult verificationResult = versionVerifier.verify();
 

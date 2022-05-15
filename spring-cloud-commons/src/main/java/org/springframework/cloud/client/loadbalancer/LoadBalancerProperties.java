@@ -16,10 +16,13 @@
 
 package org.springframework.cloud.client.loadbalancer;
 
+import java.io.IOException;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeoutException;
 
 import reactor.util.retry.RetryBackoffSpec;
 
@@ -29,12 +32,15 @@ import org.springframework.http.HttpMethod;
 import org.springframework.util.LinkedCaseInsensitiveMap;
 
 /**
- * A {@link ConfigurationProperties} bean for Spring Cloud LoadBalancer.
+ * The base configuration bean for Spring Cloud LoadBalancer.
+ *
+ * See {@link LoadBalancerClientsProperties} for the {@link ConfigurationProperties}
+ * annotation.
  *
  * @author Olga Maciaszek-Sharma
+ * @author Gandhimathi Velusamy
  * @since 2.2.1
  */
-@ConfigurationProperties("spring.cloud.loadbalancer")
 public class LoadBalancerProperties {
 
 	/**
@@ -105,6 +111,19 @@ public class LoadBalancerProperties {
 		this.hintHeaderName = hintHeaderName;
 	}
 
+	/**
+	 * Enabling X-Forwarded Host and Proto Headers.
+	 */
+	private XForwarded xForwarded = new XForwarded();
+
+	public void setxForwarded(XForwarded xForwarded) {
+		this.xForwarded = xForwarded;
+	}
+
+	public XForwarded getXForwarded() {
+		return xForwarded;
+	}
+
 	public static class StickySession {
 
 		/**
@@ -136,6 +155,23 @@ public class LoadBalancerProperties {
 
 	}
 
+	public static class XForwarded {
+
+		/**
+		 * To Enable X-Forwarded Headers.
+		 */
+		private boolean enabled = false;
+
+		public boolean isEnabled() {
+			return enabled;
+		}
+
+		public void setEnabled(boolean enabled) {
+			this.enabled = enabled;
+		}
+
+	}
+
 	public static class HealthCheck {
 
 		/**
@@ -153,7 +189,18 @@ public class LoadBalancerProperties {
 		 */
 		private Duration refetchInstancesInterval = Duration.ofSeconds(25);
 
+		/**
+		 * Path at which the health-check request should be made. Can be set up per
+		 * <code>serviceId</code>. A <code>default</code> value can be set up as well. If
+		 * none is set up, <code>/actuator/health</code> will be used.
+		 */
 		private Map<String, String> path = new LinkedCaseInsensitiveMap<>();
+
+		/**
+		 * Port at which the health-check request should be made. If none is set, the port
+		 * under which the requested service is available at the service instance.
+		 */
+		private Integer port;
 
 		/**
 		 * Indicates whether the instances should be refetched by the
@@ -218,6 +265,14 @@ public class LoadBalancerProperties {
 			this.interval = interval;
 		}
 
+		public Integer getPort() {
+			return port;
+		}
+
+		public void setPort(Integer port) {
+			this.port = port;
+		}
+
 	}
 
 	public static class Retry {
@@ -229,6 +284,12 @@ public class LoadBalancerProperties {
 		 * {@link HttpMethod#GET}.
 		 */
 		private boolean retryOnAllOperations = false;
+
+		/**
+		 * Indicates retries should be attempted for all exceptions, not only those
+		 * specified in {@code retryableExceptions}.
+		 */
+		private boolean retryOnAllExceptions = false;
 
 		/**
 		 * Number of retries to be executed on the same <code>ServiceInstance</code>.
@@ -245,6 +306,13 @@ public class LoadBalancerProperties {
 		 * A {@link Set} of status codes that should trigger a retry.
 		 */
 		private Set<Integer> retryableStatusCodes = new HashSet<>();
+
+		/**
+		 * A {@link Set} of {@link Throwable} classes that should trigger a retry.
+		 */
+		private Set<Class<? extends Throwable>> retryableExceptions = new HashSet<>(
+				Arrays.asList(IOException.class, TimeoutException.class, RetryableStatusCodeException.class,
+						org.springframework.cloud.client.loadbalancer.reactive.RetryableStatusCodeException.class));
 
 		/**
 		 * Properties for Reactor Retry backoffs in Spring Cloud LoadBalancer.
@@ -300,12 +368,30 @@ public class LoadBalancerProperties {
 			this.retryableStatusCodes = retryableStatusCodes;
 		}
 
+		public Set<Class<? extends Throwable>> getRetryableExceptions() {
+			return retryableExceptions;
+		}
+
+		public void setRetryableExceptions(Set<Class<? extends Throwable>> retryableExceptions) {
+			retryableExceptions
+					.add(org.springframework.cloud.client.loadbalancer.reactive.RetryableStatusCodeException.class);
+			this.retryableExceptions = retryableExceptions;
+		}
+
 		public Backoff getBackoff() {
 			return backoff;
 		}
 
 		public void setBackoff(Backoff backoff) {
 			this.backoff = backoff;
+		}
+
+		public boolean isRetryOnAllExceptions() {
+			return retryOnAllExceptions;
+		}
+
+		public void setRetryOnAllExceptions(boolean retryOnAllExceptions) {
+			this.retryOnAllExceptions = retryOnAllExceptions;
 		}
 
 		public static class Backoff {

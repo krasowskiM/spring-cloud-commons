@@ -17,7 +17,6 @@
 package org.springframework.cloud.loadbalancer.core;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -27,6 +26,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.cloud.client.DefaultServiceInstance;
 import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.discovery.ReactiveDiscoveryClient;
+import org.springframework.cloud.client.loadbalancer.LoadBalancerClientsProperties;
 import org.springframework.cloud.client.loadbalancer.LoadBalancerProperties;
 import org.springframework.cloud.loadbalancer.blocking.client.BlockingLoadBalancerClient;
 import org.springframework.cloud.loadbalancer.cache.LoadBalancerCacheManager;
@@ -36,7 +36,6 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import static java.time.Duration.ofMillis;
@@ -49,7 +48,6 @@ import static org.springframework.cloud.loadbalancer.core.ServiceInstanceListSup
  * @author Olga Maciaszek-Sharma
  */
 @SpringBootTest(classes = CachingServiceInstanceListSupplierTests.TestConfig.class)
-@ExtendWith(SpringExtension.class)
 class CachingServiceInstanceListSupplierTests {
 
 	public static final String SERVICE_ID = "test";
@@ -103,8 +101,8 @@ class CachingServiceInstanceListSupplierTests {
 		}
 
 		@Bean
-		LoadBalancerClientFactory loadBalancerClientFactory() {
-			return new LoadBalancerClientFactory();
+		LoadBalancerClientFactory loadBalancerClientFactory(LoadBalancerClientsProperties properties) {
+			return new LoadBalancerClientFactory(properties);
 		}
 
 		@Bean
@@ -114,8 +112,8 @@ class CachingServiceInstanceListSupplierTests {
 		}
 
 		@Bean
-		public LoadBalancerProperties loadBalancerProperties() {
-			return new LoadBalancerProperties();
+		public LoadBalancerClientsProperties loadBalancerClientsProperties() {
+			return new LoadBalancerClientsProperties();
 		}
 
 		@Bean

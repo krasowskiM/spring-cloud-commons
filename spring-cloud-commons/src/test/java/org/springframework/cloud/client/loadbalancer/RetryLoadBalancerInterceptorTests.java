@@ -62,6 +62,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
 /**
  * @author Ryan Baxter
@@ -88,7 +89,9 @@ public class RetryLoadBalancerInterceptorTests {
 		client = mock(LoadBalancerClient.class);
 		lbRequestFactory = mock(LoadBalancerRequestFactory.class);
 		properties = new LoadBalancerProperties();
-		lbFactory = mock(ReactiveLoadBalancer.Factory.class);
+		properties.getRetry().setRetryOnAllExceptions(true);
+		lbFactory = mock(ReactiveLoadBalancer.Factory.class, withSettings().lenient());
+		when(lbFactory.getProperties(any())).thenReturn(properties);
 	}
 
 	@AfterEach
@@ -105,8 +108,8 @@ public class RetryLoadBalancerInterceptorTests {
 		when(client.execute(eq("foo"), eq(serviceInstance), any(LoadBalancerRequest.class)))
 				.thenThrow(new IOException());
 		properties.getRetry().setEnabled(false);
-		RetryLoadBalancerInterceptor interceptor = new RetryLoadBalancerInterceptor(client, properties,
-				lbRequestFactory, loadBalancedRetryFactory, lbFactory);
+		RetryLoadBalancerInterceptor interceptor = new RetryLoadBalancerInterceptor(client, lbRequestFactory,
+				loadBalancedRetryFactory, lbFactory);
 		byte[] body = new byte[] {};
 		ClientHttpRequestExecution execution = mock(ClientHttpRequestExecution.class);
 
@@ -123,8 +126,8 @@ public class RetryLoadBalancerInterceptorTests {
 		HttpRequest request = mock(HttpRequest.class);
 		when(request.getURI()).thenReturn(new URI("http://foo_underscore"));
 		properties.getRetry().setEnabled(true);
-		RetryLoadBalancerInterceptor interceptor = new RetryLoadBalancerInterceptor(client, properties,
-				lbRequestFactory, loadBalancedRetryFactory, lbFactory);
+		RetryLoadBalancerInterceptor interceptor = new RetryLoadBalancerInterceptor(client, lbRequestFactory,
+				loadBalancedRetryFactory, lbFactory);
 		byte[] body = new byte[] {};
 		ClientHttpRequestExecution execution = mock(ClientHttpRequestExecution.class);
 		Assertions.assertThrows(IllegalStateException.class, () -> {
@@ -143,8 +146,8 @@ public class RetryLoadBalancerInterceptorTests {
 				.thenReturn(clientHttpResponse);
 		when(lbRequestFactory.createRequest(any(), any(), any())).thenReturn(mock(LoadBalancerRequest.class));
 		properties.getRetry().setEnabled(true);
-		RetryLoadBalancerInterceptor interceptor = new RetryLoadBalancerInterceptor(client, properties,
-				lbRequestFactory, loadBalancedRetryFactory, lbFactory);
+		RetryLoadBalancerInterceptor interceptor = new RetryLoadBalancerInterceptor(client, lbRequestFactory,
+				loadBalancedRetryFactory, lbFactory);
 		byte[] body = new byte[] {};
 		ClientHttpRequestExecution execution = mock(ClientHttpRequestExecution.class);
 		interceptor.intercept(request, body, execution);
@@ -157,14 +160,15 @@ public class RetryLoadBalancerInterceptorTests {
 		when(request.getURI()).thenReturn(new URI("http://foo"));
 		ClientHttpResponse clientHttpResponse = new MockClientHttpResponse(new byte[] {}, HttpStatus.OK);
 		LoadBalancedRetryPolicy policy = mock(LoadBalancedRetryPolicy.class);
+		when(policy.retryableException(any())).thenReturn(true);
 		ServiceInstance serviceInstance = mock(ServiceInstance.class);
 		when(client.choose(eq("foo"), any())).thenReturn(serviceInstance);
 		when(client.execute(eq("foo"), eq(serviceInstance), any(LoadBalancerRequest.class)))
 				.thenReturn(clientHttpResponse);
 		when(lbRequestFactory.createRequest(any(), any(), any())).thenReturn(mock(LoadBalancerRequest.class));
 		properties.getRetry().setEnabled(true);
-		RetryLoadBalancerInterceptor interceptor = new RetryLoadBalancerInterceptor(client, properties,
-				lbRequestFactory, new MyLoadBalancedRetryFactory(policy), lbFactory);
+		RetryLoadBalancerInterceptor interceptor = new RetryLoadBalancerInterceptor(client, lbRequestFactory,
+				new MyLoadBalancedRetryFactory(policy), lbFactory);
 		byte[] body = new byte[] {};
 		ClientHttpRequestExecution execution = mock(ClientHttpRequestExecution.class);
 		ClientHttpResponse rsp = interceptor.intercept(request, body, execution);
@@ -184,13 +188,14 @@ public class RetryLoadBalancerInterceptorTests {
 		LoadBalancedRetryPolicy policy = mock(LoadBalancedRetryPolicy.class);
 		when(policy.retryableStatusCode(eq(HttpStatus.NOT_FOUND.value()))).thenReturn(true);
 		when(policy.canRetryNextServer(any(LoadBalancedRetryContext.class))).thenReturn(true);
+		when(policy.retryableException(any())).thenReturn(true);
 		ServiceInstance serviceInstance = mock(ServiceInstance.class);
 		when(client.choose(eq("foo"), any())).thenReturn(serviceInstance);
 		when(client.execute(eq("foo"), eq(serviceInstance), nullable(LoadBalancerRequest.class)))
 				.thenReturn(clientHttpResponseNotFound).thenReturn(clientHttpResponseOk);
 		properties.getRetry().setEnabled(true);
-		RetryLoadBalancerInterceptor interceptor = new RetryLoadBalancerInterceptor(client, properties,
-				lbRequestFactory, new MyLoadBalancedRetryFactory(policy), lbFactory);
+		RetryLoadBalancerInterceptor interceptor = new RetryLoadBalancerInterceptor(client, lbRequestFactory,
+				new MyLoadBalancedRetryFactory(policy), lbFactory);
 		byte[] body = new byte[] {};
 		ClientHttpRequestExecution execution = mock(ClientHttpRequestExecution.class);
 		ClientHttpResponse rsp = interceptor.intercept(request, body, execution);
@@ -212,6 +217,7 @@ public class RetryLoadBalancerInterceptorTests {
 		LoadBalancedRetryPolicy policy = mock(LoadBalancedRetryPolicy.class);
 		when(policy.retryableStatusCode(eq(HttpStatus.NOT_FOUND.value()))).thenReturn(true);
 		when(policy.canRetryNextServer(any(LoadBalancedRetryContext.class))).thenReturn(false);
+		when(policy.retryableException(any())).thenReturn(true);
 
 		ServiceInstance serviceInstance = mock(ServiceInstance.class);
 		when(client.choose(eq("foo"), any())).thenReturn(serviceInstance);
@@ -222,8 +228,8 @@ public class RetryLoadBalancerInterceptorTests {
 		properties.getRetry().setEnabled(true);
 		byte[] body = new byte[] {};
 		ClientHttpRequestExecution execution = mock(ClientHttpRequestExecution.class);
-		RetryLoadBalancerInterceptor interceptor = new RetryLoadBalancerInterceptor(client, properties,
-				lbRequestFactory, new MyLoadBalancedRetryFactory(policy), lbFactory);
+		RetryLoadBalancerInterceptor interceptor = new RetryLoadBalancerInterceptor(client, lbRequestFactory,
+				new MyLoadBalancedRetryFactory(policy), lbFactory);
 		ClientHttpResponse rsp = interceptor.intercept(request, body, execution);
 
 		verify(client, times(1)).execute(eq("foo"), eq(serviceInstance),
@@ -245,6 +251,7 @@ public class RetryLoadBalancerInterceptorTests {
 		ClientHttpResponse clientHttpResponse = new MockClientHttpResponse(new byte[] {}, HttpStatus.OK);
 		LoadBalancedRetryPolicy policy = mock(LoadBalancedRetryPolicy.class);
 		when(policy.canRetryNextServer(any(LoadBalancedRetryContext.class))).thenReturn(true);
+		when(policy.retryableException(any())).thenReturn(true);
 		MyBackOffPolicy backOffPolicy = new MyBackOffPolicy();
 		ServiceInstance serviceInstance = mock(ServiceInstance.class);
 		when(client.choose(eq("foo"), any())).thenReturn(serviceInstance);
@@ -252,8 +259,8 @@ public class RetryLoadBalancerInterceptorTests {
 				.thenThrow(new IOException()).thenReturn(clientHttpResponse);
 		when(lbRequestFactory.createRequest(any(), any(), any())).thenReturn(mock(LoadBalancerRequest.class));
 		properties.getRetry().setEnabled(true);
-		RetryLoadBalancerInterceptor interceptor = new RetryLoadBalancerInterceptor(client, properties,
-				lbRequestFactory, new MyLoadBalancedRetryFactory(policy, backOffPolicy), lbFactory);
+		RetryLoadBalancerInterceptor interceptor = new RetryLoadBalancerInterceptor(client, lbRequestFactory,
+				new MyLoadBalancedRetryFactory(policy, backOffPolicy), lbFactory);
 		byte[] body = new byte[] {};
 		ClientHttpRequestExecution execution = mock(ClientHttpRequestExecution.class);
 		ClientHttpResponse rsp = interceptor.intercept(request, body, execution);
@@ -270,14 +277,15 @@ public class RetryLoadBalancerInterceptorTests {
 		ClientHttpResponse clientHttpResponse = new MockClientHttpResponse(new byte[] {}, HttpStatus.OK);
 		LoadBalancedRetryPolicy policy = mock(LoadBalancedRetryPolicy.class);
 		when(policy.canRetryNextServer(any(LoadBalancedRetryContext.class))).thenReturn(false);
+		when(policy.retryableException(any())).thenReturn(true);
 		ServiceInstance serviceInstance = mock(ServiceInstance.class);
 		when(client.choose(eq("foo"), any())).thenReturn(serviceInstance);
 		when(client.execute(eq("foo"), eq(serviceInstance), any(LoadBalancerRequest.class)))
 				.thenThrow(new IOException()).thenReturn(clientHttpResponse);
 		when(lbRequestFactory.createRequest(any(), any(), any())).thenReturn(mock(LoadBalancerRequest.class));
 		properties.getRetry().setEnabled(true);
-		RetryLoadBalancerInterceptor interceptor = new RetryLoadBalancerInterceptor(client, properties,
-				lbRequestFactory, new MyLoadBalancedRetryFactory(policy), lbFactory);
+		RetryLoadBalancerInterceptor interceptor = new RetryLoadBalancerInterceptor(client, lbRequestFactory,
+				new MyLoadBalancedRetryFactory(policy), lbFactory);
 		byte[] body = new byte[] {};
 		ClientHttpRequestExecution execution = mock(ClientHttpRequestExecution.class);
 		Assertions.assertThrows(IOException.class, () -> {
@@ -297,6 +305,7 @@ public class RetryLoadBalancerInterceptorTests {
 		ClientHttpResponse clientHttpResponse = new MockClientHttpResponse(new byte[] {}, HttpStatus.OK);
 		LoadBalancedRetryPolicy policy = mock(LoadBalancedRetryPolicy.class);
 		when(policy.canRetryNextServer(any(LoadBalancedRetryContext.class))).thenReturn(true);
+		when(policy.retryableException(any())).thenReturn(true);
 		MyBackOffPolicy backOffPolicy = new MyBackOffPolicy();
 		ServiceInstance serviceInstance = mock(ServiceInstance.class);
 		when(client.choose(eq("listener"), any())).thenReturn(serviceInstance);
@@ -305,8 +314,7 @@ public class RetryLoadBalancerInterceptorTests {
 		properties.getRetry().setEnabled(true);
 		MyRetryListener retryListener = new MyRetryListener();
 		when(lbRequestFactory.createRequest(any(), any(), any())).thenReturn(mock(LoadBalancerRequest.class));
-		RetryLoadBalancerInterceptor interceptor = new RetryLoadBalancerInterceptor(client, properties,
-				lbRequestFactory,
+		RetryLoadBalancerInterceptor interceptor = new RetryLoadBalancerInterceptor(client, lbRequestFactory,
 				new MyLoadBalancedRetryFactory(policy, backOffPolicy, new RetryListener[] { retryListener }),
 				lbFactory);
 		byte[] body = new byte[] {};
@@ -333,8 +341,9 @@ public class RetryLoadBalancerInterceptorTests {
 				.thenThrow(new IOException()).thenReturn(clientHttpResponse);
 		properties.getRetry().setEnabled(true);
 		when(lbRequestFactory.createRequest(any(), any(), any())).thenReturn(mock(LoadBalancerRequest.class));
-		RetryLoadBalancerInterceptor interceptor = new RetryLoadBalancerInterceptor(client, properties,
-				lbRequestFactory, new MyLoadBalancedRetryFactory(policy, backOffPolicy), lbFactory);
+		when(policy.retryableException(any())).thenReturn(true);
+		RetryLoadBalancerInterceptor interceptor = new RetryLoadBalancerInterceptor(client, lbRequestFactory,
+				new MyLoadBalancedRetryFactory(policy, backOffPolicy), lbFactory);
 		byte[] body = new byte[] {};
 		ClientHttpRequestExecution execution = mock(ClientHttpRequestExecution.class);
 		ClientHttpResponse rsp = interceptor.intercept(request, body, execution);
@@ -357,8 +366,7 @@ public class RetryLoadBalancerInterceptorTests {
 				return false;
 			}
 		};
-		RetryLoadBalancerInterceptor interceptor = new RetryLoadBalancerInterceptor(client, properties,
-				lbRequestFactory,
+		RetryLoadBalancerInterceptor interceptor = new RetryLoadBalancerInterceptor(client, lbRequestFactory,
 				new MyLoadBalancedRetryFactory(policy, backOffPolicy, new RetryListener[] { myRetryListener }),
 				lbFactory);
 		ClientHttpRequestExecution execution = mock(ClientHttpRequestExecution.class);
@@ -376,8 +384,8 @@ public class RetryLoadBalancerInterceptorTests {
 		HttpRequest request = mock(HttpRequest.class);
 		when(request.getURI()).thenReturn(new URI("http://test"));
 		TestLoadBalancerClient client = new TestLoadBalancerClient();
-		RetryLoadBalancerInterceptor interceptor = new RetryLoadBalancerInterceptor(client, properties,
-				lbRequestFactory, loadBalancedRetryFactory, lbFactory);
+		RetryLoadBalancerInterceptor interceptor = new RetryLoadBalancerInterceptor(client, lbRequestFactory,
+				loadBalancedRetryFactory, lbFactory);
 
 		interceptor.intercept(request, new byte[] {}, mock(ClientHttpRequestExecution.class));
 

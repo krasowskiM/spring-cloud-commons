@@ -21,13 +21,14 @@ import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.cloud.client.loadbalancer.AsyncLoadBalancerAutoConfiguration;
+import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.loadbalancer.LoadBalancedRetryFactory;
 import org.springframework.cloud.client.loadbalancer.LoadBalancerClient;
-import org.springframework.cloud.client.loadbalancer.LoadBalancerProperties;
+import org.springframework.cloud.client.loadbalancer.LoadBalancerClientsProperties;
+import org.springframework.cloud.client.loadbalancer.reactive.ReactiveLoadBalancer;
 import org.springframework.cloud.loadbalancer.annotation.LoadBalancerClients;
+import org.springframework.cloud.loadbalancer.blocking.XForwardedHeadersTransformer;
 import org.springframework.cloud.loadbalancer.blocking.client.BlockingLoadBalancerClient;
 import org.springframework.cloud.loadbalancer.blocking.retry.BlockingLoadBalancedRetryFactory;
 import org.springframework.cloud.loadbalancer.core.LoadBalancerServiceInstanceCookieTransformer;
@@ -41,42 +42,49 @@ import org.springframework.web.client.RestTemplate;
  * An autoconfiguration for {@link BlockingLoadBalancerClient}.
  *
  * @author Olga Maciaszek-Sharma
+ * @author Gandhimathi Velusamy
  * @since 2.1.3
  */
 @Configuration(proxyBeanMethods = false)
 @LoadBalancerClients
 @AutoConfigureAfter(LoadBalancerAutoConfiguration.class)
-@AutoConfigureBefore({ org.springframework.cloud.client.loadbalancer.LoadBalancerAutoConfiguration.class,
-		AsyncLoadBalancerAutoConfiguration.class })
+@AutoConfigureBefore({ org.springframework.cloud.client.loadbalancer.LoadBalancerAutoConfiguration.class })
 @ConditionalOnClass(RestTemplate.class)
 public class BlockingLoadBalancerClientAutoConfiguration {
 
 	@Bean
 	@ConditionalOnBean(LoadBalancerClientFactory.class)
 	@ConditionalOnMissingBean
-	public LoadBalancerClient blockingLoadBalancerClient(LoadBalancerClientFactory loadBalancerClientFactory,
-			LoadBalancerProperties properties) {
-		return new BlockingLoadBalancerClient(loadBalancerClientFactory, properties);
+	public LoadBalancerClient blockingLoadBalancerClient(LoadBalancerClientFactory loadBalancerClientFactory) {
+		return new BlockingLoadBalancerClient(loadBalancerClientFactory);
 	}
 
 	@Bean
-	@ConditionalOnProperty(value = "spring.cloud.loadbalancer.sticky-session.add-service-instance-cookie",
-			havingValue = "true")
+	@ConditionalOnBean(LoadBalancerClientFactory.class)
 	@ConditionalOnMissingBean(LoadBalancerServiceInstanceCookieTransformer.class)
 	public LoadBalancerServiceInstanceCookieTransformer loadBalancerServiceInstanceCookieTransformer(
-			LoadBalancerProperties properties) {
-		return new LoadBalancerServiceInstanceCookieTransformer(properties.getStickySession());
+			LoadBalancerClientFactory loadBalancerClientFactory) {
+		return new LoadBalancerServiceInstanceCookieTransformer(loadBalancerClientFactory);
+	}
+
+	@Bean
+	@ConditionalOnMissingBean(XForwardedHeadersTransformer.class)
+	@ConditionalOnBean(LoadBalancerClientFactory.class)
+	public XForwardedHeadersTransformer xForwarderHeadersTransformer(
+			LoadBalancerClientFactory loadBalancerClientFactory) {
+		return new XForwardedHeadersTransformer(loadBalancerClientFactory);
 	}
 
 	@Configuration
 	@ConditionalOnClass(RetryTemplate.class)
-	@EnableConfigurationProperties(LoadBalancerProperties.class)
+	@EnableConfigurationProperties(LoadBalancerClientsProperties.class)
 	protected static class BlockingLoadBalancerRetryConfig {
 
 		@Bean
 		@ConditionalOnMissingBean
-		LoadBalancedRetryFactory loadBalancedRetryFactory(LoadBalancerProperties properties) {
-			return new BlockingLoadBalancedRetryFactory(properties);
+		LoadBalancedRetryFactory loadBalancedRetryFactory(
+				ReactiveLoadBalancer.Factory<ServiceInstance> loadBalancerFactory) {
+			return new BlockingLoadBalancedRetryFactory(loadBalancerFactory);
 		}
 
 	}

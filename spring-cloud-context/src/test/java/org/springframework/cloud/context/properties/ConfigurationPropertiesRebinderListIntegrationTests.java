@@ -19,11 +19,10 @@ package org.springframework.cloud.context.properties;
 import java.util.List;
 import java.util.Map;
 
-import javax.annotation.PostConstruct;
-
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.context.PropertyPlaceholderAutoConfiguration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -56,23 +55,23 @@ public class ConfigurationPropertiesRebinderListIntegrationTests {
 
 	@Test
 	@DirtiesContext
-	public void testAppendProperties() throws Exception {
-		then("[one, two]").isEqualTo(this.properties.getMessages().toString());
+	public void testAppendProperties() {
+		then(this.properties.getMessages()).containsOnly("one", "two");
 		TestPropertyValues.of("messages[0]:foo").applyTo(this.environment);
 		this.rebinder.rebind();
-		then(this.properties.getMessages().toString()).isEqualTo("[foo]");
+		then(this.properties.getMessages()).containsOnly("foo");
 	}
 
 	@Test
 	@DirtiesContext
 	@Disabled("Can't rebind to list and re-initialize it (need refresh scope for this to work)")
-	public void testReplaceProperties() throws Exception {
-		then("[one, two]").isEqualTo(this.properties.getMessages().toString());
+	public void testReplaceProperties() {
+		then(this.properties.getMessages()).containsOnly("one", "two");
 		Map<String, Object> map = findTestProperties();
 		map.clear();
 		TestPropertyValues.of("messages[0]:foo").applyTo(this.environment);
 		this.rebinder.rebind();
-		then(this.properties.getMessages().toString()).isEqualTo("[foo]");
+		then(this.properties.getMessages()).containsOnly("foo");
 	}
 
 	private Map<String, Object> findTestProperties() {
@@ -88,13 +87,13 @@ public class ConfigurationPropertiesRebinderListIntegrationTests {
 
 	@Test
 	@DirtiesContext
-	public void testReplacePropertiesWithCommaSeparated() throws Exception {
-		then("[one, two]").isEqualTo(this.properties.getMessages().toString());
+	public void testReplacePropertiesWithCommaSeparated() {
+		then(this.properties.getMessages()).containsOnly("one", "two");
 		Map<String, Object> map = findTestProperties();
 		map.clear();
 		TestPropertyValues.of("messages:foo").applyTo(this.environment);
 		this.rebinder.rebind();
-		then(this.properties.getMessages().toString()).isEqualTo("[foo]");
+		then(this.properties.getMessages()).containsOnly("foo");
 	}
 
 	@Configuration(proxyBeanMethods = false)
@@ -103,7 +102,7 @@ public class ConfigurationPropertiesRebinderListIntegrationTests {
 	protected static class TestConfiguration {
 
 		@Bean
-		protected TestProperties properties() {
+		protected TestProperties localTestProperties() {
 			return new TestProperties();
 		}
 
@@ -120,7 +119,7 @@ public class ConfigurationPropertiesRebinderListIntegrationTests {
 	}
 
 	@ConfigurationProperties
-	protected static class TestProperties {
+	protected static class TestProperties implements InitializingBean {
 
 		private List<String> messages;
 
@@ -138,8 +137,8 @@ public class ConfigurationPropertiesRebinderListIntegrationTests {
 			return this.count;
 		}
 
-		@PostConstruct
-		public void init() {
+		@Override
+		public void afterPropertiesSet() {
 			this.count++;
 		}
 

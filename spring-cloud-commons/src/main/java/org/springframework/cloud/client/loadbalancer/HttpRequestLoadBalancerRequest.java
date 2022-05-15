@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,16 @@
 
 package org.springframework.cloud.client.loadbalancer;
 
-import org.springframework.web.client.AsyncRestTemplate;
+import org.springframework.http.HttpRequest;
 
 /**
- * @author Rob Worsnop
+ * Represents a {@link LoadBalancerRequest} created on top of an {@link HttpRequest}.
+ *
+ * @author Olga Maciaszek-Sharma
+ * @since 3.1.2
  */
-public interface AsyncRestTemplateCustomizer {
+public interface HttpRequestLoadBalancerRequest<T> extends LoadBalancerRequest<T> {
 
-	void customize(AsyncRestTemplate restTemplate);
+	HttpRequest getHttpRequest();
 
 }
